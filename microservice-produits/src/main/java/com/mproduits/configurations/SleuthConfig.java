@@ -6,6 +6,8 @@ package com.mproduits.configurations;
  * Project : spring-boot-microservices $
  */
 import brave.sampler.Sampler;
+import org.springframework.boot.actuate.health.SimpleStatusAggregator;
+import org.springframework.boot.actuate.health.StatusAggregator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -13,9 +15,15 @@ import org.springframework.context.annotation.Configuration;
 public class SleuthConfig
 
 {
+    @Bean
     public Sampler defaultSampler()
 
     {
         return Sampler.ALWAYS_SAMPLE;
+    }
+
+    @Bean
+    public StatusAggregator statusAggregator() {
+        return new SimpleStatusAggregator();
     }
 }

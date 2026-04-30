@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 public class SleuthConfig
 
 {
+    @Bean
     public Sampler defaultSampler()
 
     {

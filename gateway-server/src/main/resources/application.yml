@@ -1,0 +1,53 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: gateway-server
+  cloud:
+    # Désactivation du vérificateur de compatibilité (placé au bon niveau)
+    compatibility-verifier:
+      enabled: false
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true 
+      routes:
+        # Configuration pour le Microservice Produits
+        - id: microservice-produits
+          uri: lb://MICROSERVICE-PRODUITS
+          predicates:
+            - Path=/microservice-produits/**
+          filters:
+            - RewritePath=/microservice-produits/(?<remaining>.*), /${remaining}
+
+        # Configuration pour le Microservice Commandes
+        - id: microservice-commandes
+          uri: lb://MICROSERVICE-COMMANDES
+          predicates:
+            - Path=/microservice-commandes/**
+          filters:
+            - RewritePath=/microservice-commandes/(?<remaining>.*), /${remaining}
+
+        # Configuration pour le Microservice Paiement
+        - id: microservice-paiement
+          uri: lb://MICROSERVICE-PAIEMENT
+          predicates:
+            - Path=/microservice-paiement/**
+          filters:
+            - RewritePath=/microservice-paiement/(?<remaining>.*), /${remaining}
+
+# Enregistrement auprès d'Eureka
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:9201/eureka/
+  instance:
+    prefer-ip-address: true
+
+# Nettoyage des logs
+management:
+  tracing:
+    sampling:
+      probability: 0.0

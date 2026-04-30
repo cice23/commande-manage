@@ -9,6 +9,7 @@ import io.github.resilience4j.retry.annotation.Retry;
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -17,8 +18,8 @@ import java.util.concurrent.CompletableFuture;
 @RequestMapping("/produits")
 public class ProductController {
 
-    private ProductDao productDao;
-    private ApplicationPropertiesConfiguration appProperties;
+    private final ProductDao productDao;
+    private final ApplicationPropertiesConfiguration appProperties;
 
     public ProductController(ProductDao productDao, ApplicationPropertiesConfiguration applicationPropertiesConfiguration) {
         this.productDao = productDao;
@@ -26,56 +27,49 @@ public class ProductController {
     }
 
     // Affiche la liste de tous les produits disponibles
-    @GetMapping(value = "/")
-    @CircuitBreaker(name="inventory",fallbackMethod = "fallBackMethod")
+    @GetMapping
+    @CircuitBreaker(name="inventory", fallbackMethod = "fallBackMethod")
     @TimeLimiter(name="inventory")
-    @Retry(name ="ïnventory")
+    @Retry(name ="inventory") // Correction du "ï"
     public CompletableFuture<List<Product>> listeDesProduits(){
+        return CompletableFuture.supplyAsync(() -> {
+            List<Product> products = productDao.findAll();
 
-        List<Product> products = productDao.findAll();
+            if(products.isEmpty()) {
+                throw new ProductNotFoundException("Aucun produit n'est disponible à la vente");
+            }
 
-        if(products.isEmpty()) throw new ProductNotFoundException("Aucun produit n'est disponible à la vente");
-
-        List<Product> listeLimitee = products.subList(0, appProperties.getLimitDeProduits());
-        return  CompletableFuture.supplyAsync(
-                ()->listeLimitee
-        );
-
+            // Calcul de la limite pour éviter l'IndexOutOfBoundsException
+            int limit = Math.min(products.size(), appProperties.getLimitDeProduits());
+            return products.subList(0, limit);
+        });
     }
 
-    public CompletableFuture<String> fallBackMethod(RuntimeException e){
-        return CompletableFuture.supplyAsync(
-                ()->"oups Something went wrog "
-        );
+    /**
+     * Fallback avec le MÊME type de retour (List<Product>)
+     * Cela évite l'erreur de conversion (Content-Type text/plain) dans ClientUI
+     */
+    public CompletableFuture<List<Product>> fallBackMethod(Exception e){
+        return CompletableFuture.supplyAsync(() -> {
+            // On retourne une liste vide au lieu d'un String
+            // Le ClientUI verra juste une page d'accueil sans produits au lieu d'une erreur 500
+            return new ArrayList<>(); 
+        });
     }
 
-    //Récuperer un produit par son id
-    @GetMapping( value = "/{id}")
+    // Récupérer un produit par son id
+    @GetMapping(value = "/{id}")
     public Optional<Product> recupererUnProduit(@PathVariable int id) {
-
         Optional<Product> product = productDao.findById(id);
-
-        if(!product.isPresent())  throw new ProductNotFoundException("Le produit correspondant à l'id " + id + " n'existe pas");
-
+        if(!product.isPresent()) {
+            throw new ProductNotFoundException("Le produit correspondant à l'id " + id + " n'existe pas");
+        }
         return product;
     }
 
-    @GetMapping( value = "/one")
-    public Product recupererUnProduit() {
-        Product product = new Product();
-        product.setId(1);
-        product.setDescription("description");
-        product.setImage("image");
-        product.setTitre("titre");
-        product.setPrix(1.0);
-        productDao.save(product);
-        return product;
-    }
-
-    @PostMapping( value = "/")
+    @PostMapping
     public Product ajouterUnProduit(@RequestBody Product product) {
         productDao.save(product);
         return product;
     }
 }
-

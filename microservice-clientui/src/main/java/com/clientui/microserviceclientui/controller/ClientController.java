@@ -6,28 +6,39 @@ import com.clientui.microserviceclientui.beans.ProductBean;
 import com.clientui.microserviceclientui.proxies.MicroserviceCommandeProxy;
 import com.clientui.microserviceclientui.proxies.MicroservicePaiementProxy;
 import com.clientui.microserviceclientui.proxies.MicroserviceProduitsProxy;
-import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-
-import java.util.Date;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-
+import java.util.Date;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @Controller
-@AllArgsConstructor
 public class ClientController {
+
+    private static final Logger logger = LoggerFactory.getLogger(ClientController.class);
 
     private final MicroserviceProduitsProxy ProduitsProxy;
 
     private final MicroserviceCommandeProxy CommandesProxy;
 
     private final MicroservicePaiementProxy paiementProxy;
+
+    public ClientController(MicroserviceProduitsProxy produitsProxy,
+                            MicroserviceCommandeProxy commandesProxy,
+                            MicroservicePaiementProxy paiementProxy) {
+        this.ProduitsProxy = produitsProxy;
+        this.CommandesProxy = commandesProxy;
+        this.paiementProxy = paiementProxy;
+    }
 
 
     /*
@@ -68,49 +79,115 @@ public class ClientController {
     @RequestMapping(value = "/commander-produit/{idProduit}/{montant}")
     public String passerCommande(@PathVariable int idProduit, @PathVariable Double montant,  Model model){
 
-
         CommandeBean commande = new CommandeBean();
-
-        //On renseigne les propriétés de l'objet de type CommandeBean que nous avons crée
         commande.setProductId(idProduit);
         commande.setQuantite(1);
         commande.setDateCommande(new Date());
 
-        //appel du microservice commandes grâce à Feign et on récupère en retour les détails de la commande créée, notamment son ID (étape 4).
         CommandeBean commandeAjoutee = CommandesProxy.ajouterCommande(commande);
-
-        //on passe à la vue l'objet commande et le montant de celle-ci afin d'avoir les informations nécessaire pour le paiement
         model.addAttribute("commande", commandeAjoutee);
         model.addAttribute("montant", montant);
 
         return "Paiement";
     }
 
-    /*
-    * Étape (5)
-    * Opération qui fait appel au microservice de paiement pour traiter un paiement
-    * */
+    @PostMapping(value = "/commander-produit")
+    public String passerCommandePost(@RequestParam int idProduit,
+                                     @RequestParam Double montant,
+                                     @RequestParam(defaultValue = "1") int quantite,
+                                     Model model) {
+
+        try {
+            logger.info("Commande reçue: idProduit={}, montant={}, quantite={}", idProduit, montant, quantite);
+
+            CommandeBean commande = new CommandeBean();
+            commande.setProductId(idProduit);
+            commande.setQuantite(quantite);
+            commande.setDateCommande(new Date());
+
+            Double montantTotal = montant * quantite;
+
+            logger.info("Appel du proxy commandes pour ajouter la commande");
+            CommandeBean commandeAjoutee = CommandesProxy.ajouterCommande(commande);
+
+            model.addAttribute("commande", commandeAjoutee);
+            model.addAttribute("montant", montantTotal);
+
+            logger.info("Commande ajoutée avec succès, id={}", commandeAjoutee.getId());
+
+            return "Paiement";
+        } catch (Exception e) {
+            logger.error("Erreur lors de la commande: {}", e.getMessage(), e);
+            model.addAttribute("statusCode", 500);
+            model.addAttribute("errorMessage", "Une erreur interne est survenue lors de la commande. Veuillez réessayer.");
+            return "error";
+        }
+    }
+
     @RequestMapping(value = "/payer-commande/{idCommande}/{montantCommande}")
-    public String payerCommande(@PathVariable int idCommande, @PathVariable Double montantCommande, Model model){
+    public String payerCommandeGet(@PathVariable int idCommande, @PathVariable Double montantCommande, Model model){
 
         PaiementBean paiementAExcecuter = new PaiementBean();
-
-        //on reseigne les détails du produit
         paiementAExcecuter.setIdCommande(idCommande);
         paiementAExcecuter.setMontant(montantCommande);
-        paiementAExcecuter.setNumeroCarte(numcarte()); // on génère un numéro au hasard pour simuler une CB
+        paiementAExcecuter.setNumeroCarte(numcarte());
 
-        // On appel le microservice et (étape 7) on récupère le résultat qui est sous forme ResponseEntity<PaiementBean> ce qui va nous permettre de vérifier le code retour.
         ResponseEntity<PaiementBean> paiement = paiementProxy.payerUneCommande(paiementAExcecuter);
 
         boolean paiementAccepte = false;
-        //si le code est autre que 201 CREATED, c'est que le paiement n'a pas pu aboutir.
         if(paiement.getStatusCode() == HttpStatus.CREATED)
+            paiementAccepte = true;
+
+        model.addAttribute("paiementOk", paiementAccepte);
+        model.addAttribute("idCommande", idCommande);
+        model.addAttribute("montantCommande", montantCommande);
+
+        return "Confirmation";
+    }
+
+    @PostMapping(value = "/payer-commande")
+    public String payerCommandePost(@RequestParam int idCommande,
+                                    @RequestParam Double montantCommande,
+                                    @RequestParam(required = false) String numeroCarte,
+                                    Model model){
+
+        try {
+            logger.info("Paiement reçu: idCommande={}, montant={}, numeroCarte={}", idCommande, montantCommande, numeroCarte != null ? "****" : "null");
+
+            PaiementBean paiementAExcecuter = new PaiementBean();
+            paiementAExcecuter.setIdCommande(idCommande);
+            paiementAExcecuter.setMontant(montantCommande);
+
+            if (numeroCarte != null && !numeroCarte.isBlank()) {
+                try {
+                    paiementAExcecuter.setNumeroCarte(Long.parseLong(numeroCarte.replaceAll("\\D", "")));
+                } catch (NumberFormatException e) {
+                    paiementAExcecuter.setNumeroCarte(numcarte());
+                }
+            } else {
+                paiementAExcecuter.setNumeroCarte(numcarte());
+            }
+
+            logger.info("Appel du proxy paiement");
+            ResponseEntity<PaiementBean> paiement = paiementProxy.payerUneCommande(paiementAExcecuter);
+
+            boolean paiementAccepte = false;
+            if(paiement.getStatusCode() == HttpStatus.CREATED)
                 paiementAccepte = true;
 
-        model.addAttribute("paiementOk", paiementAccepte); // on envoi un Boolean paiementOk à la vue
+            model.addAttribute("paiementOk", paiementAccepte);
+            model.addAttribute("idCommande", idCommande);
+            model.addAttribute("montantCommande", montantCommande);
 
-        return "confirmation";
+            logger.info("Paiement traité: accepté={}", paiementAccepte);
+
+            return "Confirmation";
+        } catch (Exception e) {
+            logger.error("Erreur lors du paiement: {}", e.getMessage(), e);
+            model.addAttribute("paiementOk", false);
+            model.addAttribute("errorMessage", "Une erreur interne est survenue lors du paiement.");
+            return "Confirmation";
+        }
     }
 
     //Génére une serie de 16 chiffres au hasard pour simuler vaguement une CB
