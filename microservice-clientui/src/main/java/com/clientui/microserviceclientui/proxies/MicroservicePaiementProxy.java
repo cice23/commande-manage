@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 public interface MicroservicePaiementProxy {
 
     // L'URL via la Gateway doit inclure le nom du service enregistré dans Eureka
-    @PostMapping(value = "/microservice-paiement/paiements")
+    @PostMapping(value = "/microservice-paiement/paiement")
     ResponseEntity<PaiementBean> payerUneCommande(@RequestBody PaiementBean paiement);
 
 }

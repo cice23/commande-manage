@@ -151,6 +151,9 @@ public class ClientController {
                                     @RequestParam(required = false) String numeroCarte,
                                     Model model){
 
+        model.addAttribute("idCommande", idCommande);
+        model.addAttribute("montantCommande", montantCommande);
+
         try {
             logger.info("Paiement reçu: idCommande={}, montant={}, numeroCarte={}", idCommande, montantCommande, numeroCarte != null ? "****" : "null");
 
@@ -176,8 +179,6 @@ public class ClientController {
                 paiementAccepte = true;
 
             model.addAttribute("paiementOk", paiementAccepte);
-            model.addAttribute("idCommande", idCommande);
-            model.addAttribute("montantCommande", montantCommande);
 
             logger.info("Paiement traité: accepté={}", paiementAccepte);
 
@@ -185,7 +186,7 @@ public class ClientController {
         } catch (Exception e) {
             logger.error("Erreur lors du paiement: {}", e.getMessage(), e);
             model.addAttribute("paiementOk", false);
-            model.addAttribute("errorMessage", "Une erreur interne est survenue lors du paiement.");
+            model.addAttribute("errorMessage", "Une erreur est survenue: " + e.getMessage());
             return "Confirmation";
         }
     }
