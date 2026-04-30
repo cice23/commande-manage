@@ -19,7 +19,8 @@ public class MproduitsApplication {
 	@Bean
 	public CommandLineRunner seedDatabase(ProductDao productDao) {
 		return args -> {
-			if (productDao.count() == 0) {
+			if (productDao.count() < 20) {
+				productDao.deleteAll();
 				productDao.save(new Product(0, "Bougie fonctionnant au feu", "bougie qui fonctionne comme une ampoule mais sans électricité !", "https://github.com/OpenClassrooms-Student-Center/4668216-Optimisez-votre-architecture-Microservices/blob/master/images/Bougie.PNG?raw=true", 22.0));
 				productDao.save(new Product(1, "Chaise pour s'assoire", "Chaise rare avec non pas 1 ni 2 mais 3 pieds", "https://github.com/OpenClassrooms-Student-Center/4668216-Optimisez-votre-architecture-Microservices/blob/master/images/Chaise.PNG?raw=true", 95.0));
 				productDao.save(new Product(2, "Cheval pour nains", "Ce cheval ne portera certainement pas blanche neige, mais sans problème les nains", "https://github.com/OpenClassrooms-Student-Center/4668216-Optimisez-votre-architecture-Microservices/blob/master/images/Cheval.PNG?raw=true", 360.0));
