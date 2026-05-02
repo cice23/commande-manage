@@ -5,5 +5,5 @@ CREATE TABLE product
     titre       VARCHAR(255) NOT NULL,
     description VARCHAR(1000) NOT NULL,
     image       VARCHAR(1000) NOT NULL,
-    prix        DOUBLE          NOT NULL
+    prix        DOUBLE PRECISION NOT NULL
 );
