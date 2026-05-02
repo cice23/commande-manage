@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 @RefreshScope
 public class ApplicationPropertiesConfiguration {
 
-    private int limitDeProduits;
+    private int limitDeProduits = 20;
 
     public int getLimitDeProduits()
     {
